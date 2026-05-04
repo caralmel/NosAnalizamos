@@ -1,10 +1,47 @@
 ---
 title: "NosAnalizamos"
 author: "Carlos Albiach Melgar"
-date: "2026-05-04"
+date: "`r Sys.Date()`" #fecha actual
 output: html_document
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
+
+1 Elegir plantilla
+2 cargar librerias
+3 borrar variables
+4 carga de datos(hacer encoding)
+
+
+# Carga de librerias
+```{r}
+# VIM, deducorrect, GGally hacen las representaciones de datos faltantes
+library(pacman)
+p_load(tidyverse,readr,mice,knitr,validate,deducorrect,VIM,GGally)
+```
+
+# Borrar Variables
+```{r}
+# HACER SIEMPRE
+rm(list = ls())
+```
+
+# Cargar datos
+```{r}
+datos <- read_delim("data/NosAutoanalizamos2022 - Hoja1.tsv", 
+    delim = "\t", escape_double = FALSE, 
+    trim_ws = TRUE, skip = 25)
+
+guess_encoding("data/NosAutoanalizamos2022 - Hoja1.tsv") # comprueba el encoding del archivo
+head(datos)
+datos <- datos %>% select(-c("...1")) %>% filter(Id != "martsobm")
+
+```
+
+```{r}
+
+```
+
+
