@@ -39,9 +39,38 @@ head(datos)
 datos <- datos %>% select(-c("...1")) %>% filter(Id != "martsobm")
 
 ```
-
+# Asignaturas
 ```{r}
-#h
+notas <- c("ALG", "ANM", "FP", "DCS", "MD")
+
+datos <- datos %>% 
+  mutate(across(13:17, ~ ifelse(. == "NC", 3, .))) %>% mutate(across(13:17, ~ as.numeric(.)))
+
+# Revisa esas 5 columnas fila por fila. Si encuentra que la calificación es "NC" (No Calificado o No Presentado), la sustituye automáticamente por un 3. Si tiene cualquier otro valor, lo deja tal cual.
+# Convierte esas mismas 5 columnas a tipo numérico.
+
+Notas <- datos %>% select(Id, all_of(notas))
+
+save(Notas, file = "Notas.Rdata")
 ```
 
+# Calcular estadísticos
+```{r}
+datos %>% summarise(across(where(is.numeric),
+                                 list(
+                                   media= ~mean(.x, na.rm=TRUE),
+                                   minimo = ~min(.x, na.rm=TRUE),
+                                   per_25 = ~quantile(.x,0.25, na.rm= TRUE),
+                                   maximo = ~max(.x, na.rm= TRUE),
+                                   per_75 = ~quantile(.x, 0.75, na.rm= TRUE),
+                                   desv= ~sd(.x,na.rm=TRUE),
+                                   mediana= ~median(.x, na.rm=TRUE)
+                                 ))) 
+```
+
+```{r warning=FALSE}
+library(GGally)
+ggpairs(datos %>% select(where(is.numeric)))
+
+```
 
