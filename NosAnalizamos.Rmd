@@ -30,13 +30,25 @@ rm(list = ls())
 
 # Cargar datos
 ```{r}
-datos <- read_delim("data/NosAutoanalizamos2022 - Hoja1.tsv", 
-    delim = "\t", escape_double = FALSE, 
-    trim_ws = TRUE, skip = 25)
 
-guess_encoding("data/NosAutoanalizamos2022 - Hoja1.tsv") # comprueba el encoding del archivo
-head(datos)
-datos <- datos %>% select(-c("...1")) %>% filter(Id != "martsobm")
+#datos <- read_tsv("data/NosAutoanalizamos2022 - Hoja1.tsv", skip = 25)
+datos <- read_tsv("data/NosAutoanalizamos2026 - NosAutoanalizamos (1).tsv", skip = 28)
+
+#datos <- datos %>% mutate(across(c(ALG, ANM, FP, DCS, MD), as.numeric))
+
+
+
+datos <- datos %>% 
+  mutate(across(c(ALG, ANM, FP, DCS, MD), ~ {
+    x <- as.character(.x)             # Lo tratamos primero como texto para poder limpiarlo
+    x <- str_trim(x)                  # Quitamos espacios vacíos fantasma alrededor
+    x <- ifelse(x == "NC", "3", x)    # Si es "NC", lo cambiamos por un 3 (en texto)
+    x <- str_replace(x, ",", ".")     # Cambiamos las comas por puntos decimales
+    
+    # Al pasar a numérico, lo que no sea un número válido (ej. "6 y pico") 
+    # se convertirá automáticamente en NA lanzando un aviso correcto.
+    as.numeric(x)                     
+  }))
 
 ```
 # Asignaturas
@@ -74,3 +86,150 @@ ggpairs(datos %>% select(where(is.numeric)))
 
 ```
 
+
+# Correlación y Covarianza
+```{r}
+datos1 <- datos %>% select(where(is.numeric)) %>% drop_na()
+corr_matrix <- cor(datos1, method = "pearson")
+corr_matrix1 <- cor(datos1, method = "spearman")
+
+cov_matrix <- cov(datos1,method = "pearson")
+cov_matrix1 <- cov(datos1,method = "spearman")
+
+
+# 1. Creamos una copia de tu matriz para no destruir la original
+matriz_aux <- corr_matrix
+
+# 2. Convertimos la diagonal y la parte superior en NA 
+# solo buscará en la mitad inferior y omitirá los "1"
+matriz_aux[upper.tri(matriz_aux, diag = TRUE)] <- NA
+
+posicion <- which(matriz_aux == max(matriz_aux, na.rm = TRUE), arr.ind = TRUE)
+posicion
+```
+
+Podemos ver que la asignatura de MD tiene la correlación más alta de todas
+
+# Boxplots con las calificaciones obtenidas en las diferentes asignaturas
+```{r}
+datos1_longer<- datos1 %>% select(c("ALG", "ANM", "FP", "DCS", "MD")) %>% pivot_longer(everything(),names_to = "Asignatura",values_to = "Notas")
+
+ggplot(datos1_longer,aes(x = Asignatura, y = Notas,fill = Asignatura)) + geom_boxplot()
+```
+# Añadiendo sexo en boxplot
+```{r}
+datos2_longer<- datos %>% select(c("ALG", "ANM", "FP", "DCS", "MD","Sex")) %>% drop_na() %>% pivot_longer(-Sex,names_to = "Asignatura",values_to = "Notas")
+
+ggplot(datos2_longer,aes(x = Asignatura, y = Notas, fill = Sex)) + geom_boxplot()
+```
+
+# Alumnos con todas las calificaciones
+
+```{r}
+datos_calif <- datos %>% select(c("Id","ALG", "ANM", "FP", "DCS", "MD")) %>% drop_na() %>% pivot_longer(-Id, names_to = "Asignatura", values_to = "Notas")
+
+
+ggplot(datos_calif,aes(x = Id, y = Notas,color = Asignatura,group = Asignatura)) + geom_line() + geom_point() +
+  labs(
+    x = "Usuario del alumno",
+    y = "Calificación numérica") + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+```
+# Preguntas
+```{r}
+fecha_ref <- as.Date("01-02-2026", format="%d-%m-%Y")
+
+edad_min <- datos %>% 
+  mutate(fecha_nac = as.Date(`FechaNac(DD-MM-YYY)`, format = "%d-%m-%Y")) %>%
+  mutate(edad = as.numeric(difftime(fecha_ref, fecha_nac, units = "days")) / 365.25) %>% 
+  summarise(edad_minima = min(edad, na.rm = TRUE))
+
+edad_min
+
+```
+
+La edad minima son 22.10815	
+
+# Alumnos que trabajan y estudian
+```{r}
+trabajan <- datos %>%filter(Hwork > 0)
+
+nrow(trabajan)
+```
+
+# Fumadores por sexo
+```{r}
+fumador <- datos %>%
+  filter(Smoke == "Yes"|Smoke == "Si"|Smoke == "Sí") %>% count(Sex)
+
+fumador
+```
+# Media y varianza 
+
+```{r}
+datos <- datos %>%
+  mutate(Sex = case_when(
+      Sex %in% c("M", "F") ~ Sex,
+      TRUE ~ NA_character_))
+
+#limpiar Wr.Hnd
+
+datos <- datos %>%
+  mutate(
+    Wr.Hnd = str_replace_all(Wr.Hnd, ",", "."),
+    Wr.Hnd = as.numeric(Wr.Hnd))
+
+wrhnd_est <- datos %>%
+  group_by(Sex) %>%
+  summarise(
+    media = mean(Wr.Hnd, na.rm = TRUE),
+    varianza = var(Wr.Hnd, na.rm = TRUE))
+
+wrhnd_est
+```
+
+# Relacion sexo-mano escritura
+```{r}
+mano_escritura <- table(datos$Sex, datos$NW.Hnd)
+mano_escritura
+```
+
+# Relacion Height- Wr.Hnd
+```{r warning=FALSE}
+datos <- datos %>% mutate(Height = as.numeric(str_replace(Height, ",", ".")))
+model <- lm(Wr.Hnd ~ Height, data = datos)
+summary(model)
+
+ggplot(datos,aes(x = Height, y = Wr.Hnd)) + geom_point() + geom_smooth(method = "lm", se = TRUE, color = "steelblue")
+```
+
+# Hampel Rule
+```{r}
+hampel_outlier <- function(x) {
+  med <- median(x, na.rm = TRUE)
+  mad_val <- mad(x, na.rm = TRUE)
+  abs(x - med) > 3 * mad_val
+}
+hampel_height <- hampel_outlier(datos$Height)
+which(hampel_height)
+```
+
+# Imputación generalizada en FP
+```{r}
+fp_media <- mean(datos$FP,na.rm = TRUE)
+fp_media
+```
+
+
+# PulseCat para imputar valores faltantes en FP
+```{r}
+datos <- datos %>%mutate(Pulse = as.numeric(Pulse),PulseCat = case_when(Pulse >= 65 ~ "PulseH",Pulse < 65 ~ "PulseL",TRUE ~ NA_character_))
+
+imputacion_fp <- datos %>% group_by(PulseCat) %>% summarise(media_FP = mean(FP, na.rm = TRUE))
+
+imputacion_fp
+```
+
+# Conclusión
+
+Como científicos de datos, no podemos aceptar esa afirmación con nuestros datos, la correlación observada no es estadísticamente significativa. Además, la causalidad fisiológica propuesta no implica necesariamente correlación lineal medible en una muestra pequeña y heterogénea como la nuestra.
