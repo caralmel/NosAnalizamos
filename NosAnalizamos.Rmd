@@ -1,8 +1,10 @@
 ---
 title: "NosAnalizamos"
 author: "Carlos Albiach Melgar"
-date: "`r Sys.Date()`" #fecha actual
-output: html_document
+date: "`r Sys.Date()`"
+output:
+  pdf_document: default
+  html_document: default
 ---
 
 ```{r setup, include=FALSE}
